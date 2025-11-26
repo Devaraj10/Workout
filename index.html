@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Workout Recommendations — Dev 2.1</title>
+
+<style>
+:root {
+  --bg:#f4f6fa; --card:#fff; --text:#111; --muted:#667; --primary:#2d6cdf;
+  --radius:14px;
+}
+[data-theme="dark"] {
+  --bg:#0d1117; --card:#161b22; --text:#e6eef9; --muted:#8b9db3; --primary:#4f9cff;
+}
+body {
+  margin:0; padding:20px; background:var(--bg);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto;
+  color:var(--text);
+}
+.container{
+  max-width:950px; margin:auto; background:var(--card);
+  padding:24px; border-radius:var(--radius);
+  box-shadow:0 4px 14px rgba(0,0,0,0.07);
+}
+.header{
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:10px;
+}
+h1{margin:0;}
+select, button{
+  padding:10px 14px; border-radius:var(--radius);
+  border:1px solid #ccc; background:transparent; cursor:pointer;
+}
+button.primary{background:var(--primary); color:#fff; border:none;}
+.grid{
+  display:grid; grid-template-columns:1fr 320px; gap:20px; margin-top:20px;
+}
+@media(max-width:900px){.grid{grid-template-columns:1fr;}}
+.group{
+  background:rgba(0,0,0,0.03); padding:14px; border-radius:var(--radius);
+  margin-bottom:14px;
+}
+.exercise-item{
+  display:flex; justify-content:space-between; align-items:center;
+  margin:8px 0;
+}
+.exercise-left{
+  display:flex; gap:10px;
+}
+.exercise-gif{
+  width:60px; height:60px; border-radius:10px; background:#ddd;
+  object-fit:cover;
+}
+.switch-btn{
+  padding:6px 10px; border-radius:10px; background:transparent;
+  border:1px solid #aaa; font-size:12px; cursor:pointer;
+}
+.history-box, .panel{
+  background:rgba(0,0,0,0.03); padding:14px; border-radius:var(--radius);
+  margin-bottom:14px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Workout Recommendations — Dev 2.1</h1>
+
+    <div style="display:flex; gap:8px; align-items:center;">
+      <label><input type="checkbox" id="themeToggle"> Dark</label>
+
+      <select id="splitSelect">
+        <option value="bro">Bro Split</option>
+        <option value="pushpulllegs">Push Pull Legs</option>
+        <option value="upperlower">Upper Lower</option>
+      </select>
+
+      <button class="primary" id="showBtn">Show</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <h3>This Week’s Workout</h3>
+      <div id="exerciseArea"></div>
+    </div>
+
+    <aside>
+      <div class="panel">
+        <h3>Last Week</h3>
+        <div id="lastWeek"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Actions</h3>
+        <button id="rotateWeek">Rotate Week</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+// Workout DB with GIFs (placeholder GIFs)
+const DB = {
+  Chest: [
+    {name:"Bench Press", gif:"https://media.tenor.com/zyIuQJ5AZtEAAAAC/bench-press.gif"},
+    {name:"Incline Dumbbell Press", gif:"https://media.tenor.com/4y-znuaCG2EAAAAC/incline-dumbbell.gif"},
+    {name:"Cable Fly", gif:"https://media.tenor.com/a4xW-l11UwUAAAAC/chest-fly.gif"},
+    {name:"Pushups", gif:"https://media.tenor.com/iRK7gO0KxmkAAAAC/pushup.gif"},
+    {name:"Chest Machine Press", gif:"https://media.tenor.com/LaMVmG0kjqgAAAAC/chest-press.gif"}
+  ],
+  Triceps:[
+    {name:"Rope Pushdown", gif:"https://media.tenor.com/QDWUpAJZciYAAAAC/pushdown.gif"},
+    {name:"Skull Crusher", gif:"https://media.tenor.com/cqSgGZpo1L4AAAAC/skullcrusher.gif"},
+    {name:"Dips", gif:"https://media.tenor.com/hj94Qh1g0bMAAAAC/dips.gif"}
+  ],
+  Back:[
+    {name:"Lat Pulldown", gif:"https://media.tenor.com/PZcdpShUMp4AAAAC/lat-pulldown.gif"},
+    {name:"Barbell Row", gif:"https://media.tenor.com/iVmzXul8qzsAAAAC/barbell-row.gif"},
+    {name:"Pullups", gif:"https://media.tenor.com/Z8UJJIlGxHIAAAAC/pull-up.gif"}
+  ],
+  Shoulders:[
+    {name:"Overhead Press", gif:"https://media.tenor.com/GX4VtOfvtS8AAAAC/overhead.gif"},
+    {name:"Lateral Raises", gif:"https://media.tenor.com/Z0Ti27C0lOIAAAAC/lateral-raise.gif"}
+  ],
+  Legs:[
+    {name:"Squat", gif:"https://media.tenor.com/x2Zsv5nYeL0AAAAC/squat.gif"},
+    {name:"Leg Press", gif:"https://media.tenor.com/MMS0YtN3nAEAAAAC/legpress.gif"},
+    {name:"Lunges", gif:"https://media.tenor.com/ssGWcQijA7wAAAAC/lunges.gif"}
+  ],
+  Biceps:[
+    {name:"Dumbbell Curl", gif:"https://media.tenor.com/kHcIqZ0_HwsAAAAC/dumbbell-curl.gif"},
+    {name:"Hammer Curl", gif:"https://media.tenor.com/ZHqd-ZariQkAAAAC/hammer-curl.gif"}
+  ]
+};
+
+// Split structure
+const SPLITS = {
+  bro:["Chest","Triceps","Back","Biceps","Shoulders","Legs"],
+  pushpulllegs:[["Chest","Shoulders","Triceps"],["Back","Biceps"],["Legs"]],
+  upperlower:[["Chest","Back","Shoulders","Biceps","Triceps"],["Legs"]]
+};
+
+const splitSelect = document.getElementById('splitSelect');
+const showBtn = document.getElementById('showBtn');
+const themeToggle = document.getElementById('themeToggle');
+const exerciseArea = document.getElementById('exerciseArea');
+const lastWeekEl = document.getElementById('lastWeek');
+const rotateBtn = document.getElementById('rotateWeek');
+
+function setTheme(dark){document.documentElement.setAttribute('data-theme',dark?'dark':'light'); themeToggle.checked=dark;}
+themeToggle.addEventListener('change',()=>setTheme(themeToggle.checked));
+setTheme(false);
+
+// LocalStorage keys
+const KEY_THIS_WEEK = "dev2_thisWeek";
+const KEY_LAST_WEEK = "dev2_lastWeek";
+
+// Choose random exercises weekly
+function pickRandom(group){
+  const list = DB[group];
+  return list[Math.floor(Math.random()*list.length)];
+}
+
+function generateWeek(){
+  const split = splitSelect.value;
+  let groups = SPLITS[split];
+  if(!Array.isArray(groups[0])) groups = groups.map(x=>[x]);
+
+  const wk = groups.map(row => {
+    return row.map(x=> pickRandom(x));
+  });
+
+  localStorage.setItem(KEY_LAST_WEEK, localStorage.getItem(KEY_THIS_WEEK) || "[]");
+  localStorage.setItem(KEY_THIS_WEEK, JSON.stringify(wk));
+  render();
+}
+
+// Switch single exercise
+function switchExercise(gIndex, iIndex){
+  const week = JSON.parse(localStorage.getItem(KEY_THIS_WEEK));
+  const groupName = getGroupNames()[gIndex][iIndex];
+  week[gIndex][iIndex] = pickRandom(groupName);
+  localStorage.setItem(KEY_THIS_WEEK, JSON.stringify(week));
+  render();
+}
+
+// Helper to map split to group names
+function getGroupNames(){
+  const split = splitSelect.value;
+  let groups = SPLITS[split];
+  if(!Array.isArray(groups[0])) groups = groups.map(x=>[x]);
+  return groups;
+}
+
+function render(){
+  const week = JSON.parse(localStorage.getItem(KEY_THIS_WEEK) || "[]");
+  const last = JSON.parse(localStorage.getItem(KEY_LAST_WEEK) || "[]");
+
+  const groupNames = getGroupNames();
+
+  // Render this week
+  exerciseArea.innerHTML = "";
+  week.forEach((row, gIndex)=>{
+    const gDiv = document.createElement("div");
+    gDiv.className="group";
+    gDiv.innerHTML = `<h3>${groupNames[gIndex].join(" + ")}</h3>`;
+    row.forEach((ex, iIndex)=>{
+      const item = document.createElement("div");
+      item.className="exercise-item";
+      item.innerHTML = `
+        <div class="exercise-left">
+          <img class="exercise-gif" src="${ex.gif}">
+          <div>
+            <strong>${ex.name}</strong>
+          </div>
+        </div>
+        <button class="switch-btn" onclick="switchExercise(${gIndex},${iIndex})">Switch</button>
+      `;
+      gDiv.appendChild(item);
+    });
+    exerciseArea.appendChild(gDiv);
+  });
+
+  // Render last week
+  lastWeekEl.innerHTML = "";
+  last.forEach((row,i)=>{
+    const d=document.createElement("div");
+    d.className="history-box";
+    d.innerHTML=`<strong>${groupNames[i].join(" + ")}</strong><br>` +
+                row.map(x=>`• ${x.name}`).join("<br>");
+    lastWeekEl.appendChild(d);
+  });
+}
+
+showBtn.addEventListener('click', generateWeek);
+rotateBtn.addEventListener('click', generateWeek);
+
+render();
+</script>
+</body>
+</html>
